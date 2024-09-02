@@ -1,0 +1,72 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/12/Memory.jack
+/**
+ * This library provides two services: direct access to the computer's main
+ * memory (RAM), and allocation and recycling of memory blocks. The Hack RAM
+ * consists of 32,768 words, each holding a 16-bit binary number.
+ */
+class Memory {  // heap address 2048-16383
+    static Array memory;
+    static int freeList;
+
+    /** Initializes the class. */
+    function void init() {
+        let memory = 0;
+        let freeList = 2048;
+
+        let freeList[0] = (16383 - 2048 + 1) - 2;  // length == segment[0]
+        let freeList[1] = null;  // next == segment[1]
+
+        return;
+    }
+
+    /** Returns the RAM value at the given address. */
+    function int peek(int address) {
+        return memory[address];
+    }
+
+    /** Sets the RAM value at the given address to the given value. */
+    function void poke(int address, int value) {
+        let memory[address] = value;
+        return;
+    }
+
+    /** Finds an available RAM block of the given size and returns
+     *  a reference to its base address. */
+    function int alloc(int size) {
+        // 使用最先匹配算法
+        var Array segment;  // 表示需要分配的内存块
+        var Array temp;  // 表示当前正在搜索的块
+
+        let temp = freeList;
+        while (temp[0] < size + 2) {
+            let temp = temp[1];  // 搜索下一个块
+            if (segment = null) {
+                do Sys.error(1); // "Out of memory."
+                return 0;
+            }
+        }
+
+        let temp[0] = temp[0] - size - 2;  // 直接减少空间
+
+        let segment = temp + temp[0] + 2;  // 获取分配的内存块的地址
+        let segment[0] = size;
+        let segment[1] = null;
+
+        return segment + 2;  // 返回分配的内存块的起始可用地址
+    }
+
+    /** De-allocates the given object (cast as an array) by making
+     *  it available for future allocations. */
+    function void deAlloc(Array o) {
+        // 直接将这个块插入到链表头部
+        var int segment;
+
+        let segment = o - 2;
+        let segment[1] = freeList;
+        let freeList = segment;
+        return;
+    }
+}

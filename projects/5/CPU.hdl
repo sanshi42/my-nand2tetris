@@ -1,0 +1,72 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/5/CPU.hdl
+/**
+ * The Hack Central Processing unit (CPU).
+ * Parses the binary code in the instruction input and executes it according to the
+ * Hack machine language specification. In the case of a C-instruction, computes the
+ * function specified by the instruction. If the instruction specifies to read a memory
+ * value, the inM input is expected to contain this value. If the instruction specifies
+ * to write a value to the memory, sets the outM output to this value, sets the addressM
+ * output to the target address, and asserts the writeM output (when writeM = 0, any
+ * value may appear in outM).
+ * If the reset input is 0, computes the address of the next instruction and sets the
+ * pc output to that value. If the reset input is 1, sets pc to 0.
+ * Note: The outM and writeM outputs are combinational: they are affected by the
+ * instruction's execution during the current cycle. The addressM and pc outputs are
+ * clocked: although they are affected by the instruction's execution, they commit to
+ * their new values only in the next cycle.
+ */
+CHIP CPU {
+
+    IN  inM[16],         // M value input  (M = contents of RAM[A])
+        instruction[16], // Instruction for execution
+        reset;           // Signals whether to re-start the current
+                         // program (reset==1) or continue executing
+                         // the current program (reset==0).
+
+    OUT outM[16],        // M value output
+        writeM,          // Write to M? 
+        addressM[15],    // Address in data memory (of M)
+        pc[15];          // address of next instruction
+
+    PARTS:
+    // CPU主要由ALU、A寄存器、D寄存器和程序计数器PC组成；
+    And(a=instruction[15], b=instruction[3], out=writeM);
+
+    // A寄存器
+    Mux16(a=instruction, b=outputM, sel=instruction[15], out=Ainput);  // 如果指令最高位为1代表该指令为C指令，否则为A指令
+    // 当为A指令，或者C指令的第5位为1时，会赋值到A寄存器，记此时Aload=1
+    Not(in=instruction[15], out=isA);
+    And(a=instruction[15], b=instruction[5], out=isCandstoreA);
+    Or(a=isA, b=isCandstoreA, out=Aload);
+    ARegister(in=Ainput, load=Aload, out[0..14]=addressM, out=Aregister);  // A寄存器是否加载输入
+    
+    // D寄存器：C指令且第4位为1
+    And(a=instruction[15], b=instruction[4], out=isCandstoreD);
+    DRegister(in=outputM, load=isCandstoreD, out=Dregister);
+
+    // ALU：当且仅当是C指令时才使用ALU进行计算
+    // 当a=1时，此时是M参与计算，否则是A参与计算
+    Mux16(a=Aregister, b=inM, sel=instruction[12], out=y);
+    ALU(x=Dregister, y=y, zx=instruction[11], nx=instruction[10], zy=instruction[9], ny=instruction[8], f=instruction[7], no=instruction[6], out=outputM, out=outM, zr=zr, ng=ng);
+
+    //PC：一般情况下直接加一，但是要考虑outputM和jjj的情况
+    //输出为负数，且j1为1
+    And(a=instruction[2], b=instruction[15], out=isj1);
+    And(a=ng, b=isj1, out=ngandj1);
+    //输出为0，且j2为1
+    And(a=instruction[1], b=instruction[15], out=isj2);
+    And(a=zr, b=isj2, out=zrandj2);
+    //输出不为负数且输出不为0
+    And(a=instruction[0], b=instruction[15], out=isj3);
+    Not(in=ng, out=notng);
+    Not(in=zr, out=notzr);
+    And(a=notng, b=notzr, out=ispos);
+    And(a=ispos, b=isj3, out=posandj3);
+    Or(a=ngandj1, b=zrandj2, out=notposandjump);
+    Or(a=notposandjump, b=posandj3, out=jump);
+    Not(in=jump, out=inc);
+    PC(in=Aregister, load=jump, inc=inc, reset=reset, out[0..14]=pc);
+}

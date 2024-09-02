@@ -1,0 +1,29 @@
+class List {
+    field int data;
+    field List next;
+
+    constructor List new(int data, List cdr) {
+        let data = data;
+        let next = cdr;
+        return this;
+    }
+
+    method void dispose() {
+        if (~(next = null)) {
+           do next.dispose();
+        }
+
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    function void create235() {
+        var List v;
+        let v = List.new(5, null);
+        let v = List.new(2, List.new(3, v));
+
+        do v.dispose();
+        return;
+    }
+
+}
